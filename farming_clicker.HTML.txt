@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Фермер Кликер с питомцами</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #e5f5dc;
+    text-align: center;
+    margin: 0; padding: 0;
+  }
+  #field {
+    margin: 30px auto;
+    width: 200px;
+    height: 200px;
+    background: #88c070;
+    border: 4px solid #5a874e;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    user-select: none;
+  }
+  .button {
+    padding: 10px 20px;
+    font-size: 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4caf50;
+    color: white;
+    cursor: pointer;
+  }
+  .button:disabled {
+    background-color: #999;
+    cursor: default;
+  }
+  .pet {
+    margin: 5px auto;
+    padding: 10px;
+    max-width: 350px;
+    border-radius: 5px;
+    background: white;
+    border: 1px solid #ccc;
+    text-align: left;
+    position: relative;
+  }
+  .active {
+    border: 2px solid gold;
+  }
+  .quality {
+    font-weight: bold;
+  }
+  .buttons-row {
+    margin-top: 8px;
+    text-align: right;
+  }
+  .pet-flag {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    font-size: 18px;
+  }
+  #mergeInfo {
+    margin: 10px auto;
+    max-width: 400px;
+    background: #fff4e5;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #f0b66a;
+    font-size: 14px;
+    color: #b35900;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<h1>Фермер Кликер</h1>
+<div id="stats">
+  🌾 Урожай: <span id="cropCount">0</span><br />
+  🔄 Урожай за клик: <span id="perClick">1</span><br />
+  🐾 Активных питомцев: <span id="activeCount">0</span>/4
+</div>
+<div id="field" onclick="harvest()">🌾 КЛИК!</div>
+<div id="upgrades">
+  <button class="button" onclick="buyUpgrade()" id="upgradeBtn">Улучшить мотыгу (+1 за клик) - 10 урожая</button>
+  <button class="button" onclick="summonPet()" id="petBtn">Призвать питомца - 50 урожая</button>
+</div>
+
+<div id="pets">
+  <h3>🐾 Твои питомцы</h3>
+  <div id="petList"></div>
+</div>
+<div id="mergeInfo"></div>
+
+<script>
+let crop = 0;
+let basePerClick = 1;
+let perClick = 1;
+let upgradeCost = 10;
+let pets = [];
+const activeSlots = 4;
+
+const qualities = [
+  { name: "Обычный", color: "#8bc34a", bonus: 0.05 },
+  { name: "Редкий", color: "#2196f3", bonus: 0.1 },
+  { name: "Эпический", color: "#9c27b0", bonus: 0.2 },
+  { name: "Легендарный", color: "#ffc107", bonus: 0.4 }
+];
+
+function updateUI() {
+  document.getElementById("cropCount").innerText = Math.floor(crop);
+  document.getElementById("perClick").innerText = perClick.toFixed(2);
+  document.getElementById("upgradeBtn").disabled = crop < upgradeCost;
+  document.getElementById("petBtn").disabled = crop < 50;
+  document.getElementById("activeCount").innerText = pets.filter(p => p.active).length;
+  if (pets.length === 0) {
+    document.getElementById("petList").innerHTML = "<i>Питомцы отсутствуют</i>";
+  }
+}
+
+function recalcPerClick() {
+  let bonus = pets.filter(p => p.active).reduce((sum, p) => sum + p.bonus, 0);
+  perClick = basePerClick * (1 + bonus);
+}
+
+function harvest() {
+  crop += perClick;
+  updateUI();
+}
+
+function buyUpgrade() {
+  if (crop >= upgradeCost) {
+    crop -= upgradeCost;
+    basePerClick++;
+    upgradeCost = Math.floor(upgradeCost * 1.7);
+    document.getElementById("upgradeBtn").innerText = `Улучшить мотыгу (+1 за клик) - ${upgradeCost} урожая`;
+    recalcPerClick();
+    updateUI();
+  }
+}
+
+function summonPet() {
+  if (crop < 50) return;
+  crop -= 50;
+  let level = Math.floor(Math.random() * 40) + 1;
+  let roll = Math.random();
+  let quality;
+  if (roll < 0.6) quality = qualities[0];
+  else if (roll < 0.85) quality = qualities[1];
+  else if (roll < 0.97) quality = qualities[2];
+  else quality = qualities[3];
+
+  let name = "Питомец-" + Math.floor(Math.random() * 10000);
+  let bonus = quality.bonus * (level / 40);
+  let pet = {
+    name,
+    level,
+    quality,
+    bonus,
+    active: false,
+    evolved: false,
+    merged: false
+  };
+  pets.push(pet);
+  renderPets();
+  recalcPerClick();
+  updateUI();
+}
+
+function renderPets() {
+  let list = document.getElementById("petList");
+  list.innerHTML = "";
+
+  pets.forEach((pet, i) => {
+    let div = document.createElement("div");
+    div.className = "pet" + (pet.active ? " active" : "");
+    let flag = "";
+    if (pet.evolved) flag = "🌟";
+    else if (pet.merged) flag = "★";
+    let desc = `<span class="quality" style="color:${pet.quality.color}">${flag} ${pet.name}</span> — Уровень ${pet.level}, ${pet.quality.name}, бонус: +${(pet.bonus * 100).toFixed(1)}%`;
+
+    div.innerHTML = desc + `<div class="pet-flag">${flag}</div>`;
+
+    let btns = document.createElement("div");
+    btns.className = "buttons-row";
+
+    let actBtn = document.createElement("button");
+    actBtn.className = "button";
+    let activeCount = pets.filter(p => p.active).length;
+    if (pet.active) {
+      actBtn.innerText = "Убрать";
+      actBtn.onclick = () => toggleActive(i);
+    } else {
+      actBtn.innerText = activeCount < activeSlots ? "Активировать" : "Слоты заняты";
+      actBtn.disabled = activeCount >= activeSlots;
+      actBtn.onclick = () => toggleActive(i);
+    }
+    btns.appendChild(actBtn);
+
+    let lvlCost = pet.level * 15;
+    let lvlBtn = document.createElement("button");
+    lvlBtn.className = "button";
+    lvlBtn.innerText = `Прокачать (${lvlCost} урожая)`;
+    lvlBtn.disabled = crop < lvlCost || pet.level >= 40;
+    lvlBtn.onclick = () => levelUpPet(i);
+    btns.appendChild(lvlBtn);
+
+    if (pet.level >= 40 && pet.quality !== qualities[3]) {
+      let evoBtn = document.createElement("button");
+      evoBtn.className = "button";
+      evoBtn.innerText = "Эволюционировать (200 урожая)";
+      evoBtn.disabled = crop < 200;
+      evoBtn.onclick = () => evolvePet(i);
+      btns.appendChild(evoBtn);
+    }
+
+    if (canMerge(pet)) {
+      let mergeBtn = document.createElement("button");
+      mergeBtn.className = "button";
+      mergeBtn.innerText = "Объединить";
+      mergeBtn.onclick = () => openMergeDialog(i);
+      btns.appendChild(mergeBtn);
+    }
+
+    div.appendChild(btns);
+    list.appendChild(div);
+  });
+  updateUI();
+}
+
+function toggleActive(i) {
+  let activeCount = pets.filter(p => p.active).length;
+  if (!pets[i].active && activeCount >= activeSlots) return;
+  pets[i].active = !pets[i].active;
+  recalcPetBonus(i);
+  recalcPerClick();
+  renderPets();
+}
+
+function levelUpPet(i) {
+  let pet = pets[i];
+  if (pet.level >= 40) return;
+  let cost = pet.level * 15;
+  if (crop < cost) return;
+  crop -= cost;
+  pet.level++;
+  recalcPetBonus(i);
+  recalcPerClick();
+  renderPets();
+  updateUI();
+}
+
+function recalcPetBonus(i)
